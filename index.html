@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>모임 벌금 정산기</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts (Noto Sans KR) -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans KR', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform translate-y-[-100px] opacity-0 transition-all duration-300 ease-in-out bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+        <i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>
+        <span id="toast-message" class="text-sm font-medium">알림 메시지</span>
+    </div>
+
+    <!-- Main Container -->
+    <div class="max-w-4xl mx-auto px-4 pt-6 md:pt-10">
+
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div>
+                <div class="flex items-center gap-2 mb-1">
+                    <div class="p-2 bg-emerald-500 text-white rounded-xl shadow-md shadow-emerald-500/20">
+                        <i data-lucide="coins" class="w-6 h-6"></i>
+                    </div>
+                    <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">모임 벌금 정산기</h1>
+                </div>
+                <p class="text-slate-500 text-sm">지각, 과제 미제출 등 규칙 위반 벌금을 투명하게 관리하세요!</p>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button onclick="resetData()" class="flex items-center gap-1.5 text-xs text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-2 rounded-lg transition font-medium">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 초기화
+                </button>
+            </div>
+        </header>
+
+        <!-- Top Dashboard Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <!-- Card 1: Total Fine Collected -->
+            <div class="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-2xl shadow-xl shadow-emerald-900/10 relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 opacity-10">
+                    <i data-lucide="wallet" class="w-32 h-32"></i>
+                </div>
+                <div class="text-emerald-100 text-xs font-semibold tracking-wider uppercase mb-1">총 누적 벌금</div>
+                <div class="text-3xl font-extrabold" id="dash-total-amount">0원</div>
+                <div class="mt-4 flex items-center justify-between text-xs text-emerald-100/80 border-t border-emerald-500/40 pt-3">
+                    <span>총 단속 건수</span>
+                    <span class="font-bold text-white" id="dash-total-count">0건</span>
+                </div>
+            </div>
+
+            <!-- Card 2: Highest Fined Member -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative">
+                <div class="text-slate-400 text-xs font-semibold tracking-wider uppercase mb-1">벌금 1위 (왕)</div>
+                <div class="flex items-baseline gap-2">
+                    <div class="text-2xl font-bold text-slate-800" id="dash-king-name">-</div>
+                    <div class="text-sm font-semibold text-rose-500" id="dash-king-amount">0원</div>
+                </div>
+                <div class="mt-4 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-3">
+                    <span>전체 인원</span>
+                    <span class="font-semibold text-slate-700" id="dash-member-count">10명</span>
+                </div>
+            </div>
+
+            <!-- Card 3: Target Goal / Usage Plan -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-slate-400 text-xs font-semibold tracking-wider uppercase">회식/공금 목표 금액</span>
+                        <i data-lucide="target" class="w-4 h-4 text-emerald-500"></i>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <input type="number" id="target-goal-input" placeholder="목표액 입력" onchange="updateGoal(this.value)" class="w-32 text-xl font-bold text-slate-800 border-b border-dashed border-slate-300 focus:outline-none focus:border-emerald-500 bg-transparent">
+                        <span class="text-xs text-slate-500">원</span>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <div class="flex justify-between text-xs text-slate-500 mb-1">
+                        <span>달성률</span>
+                        <span id="goal-percent-text" class="font-bold text-emerald-600">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div id="goal-progress-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Layout (Grid) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Left Column: Input & Member Management (5 cols) -->
+            <div class="lg:col-span-5 space-y-6">
+
+                <!-- 1. Fine Registration Form -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        <i data-lucide="plus-circle" class="w-5 h-5 text-emerald-600"></i>
+                        벌금 부과하기
+                    </h2>
+
+                    <form id="fine-form" onsubmit="handleFineSubmit(event)" class="space-y-4">
+                        <!-- Member Selector (Multiple/Single toggle) -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-semibold text-slate-600">대상자 선택</label>
+                                <button type="button" onclick="selectAllMembers()" class="text-[11px] text-emerald-600 hover:underline">전체 선택/해제</button>
+                            </div>
+                            <div id="member-checkbox-group" class="grid grid-cols-3 gap-1.5 max-h-36 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
+                                <!-- Checkboxes generated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Fine Category Tag Buttons -->
+                        <div>
+                            <label class="text-xs font-semibold text-slate-600 mb-1 block">벌금 사유 / 사유 태그</label>
+                            <div class="flex flex-wrap gap-1.5 mb-2">
+                                <button type="button" onclick="setCategory('지각')" class="text-xs bg-slate-100 hover:bg-emerald-100 hover:text-emerald-700 text-slate-600 px-2.5 py-1 rounded-lg transition font-medium">⏰ 지각</button>
+                                <button type="button" onclick="setCategory('과제 미제출')" class="text-xs bg-slate-100 hover:bg-emerald-100 hover:text-emerald-700 text-slate-600 px-2.5 py-1 rounded-lg transition font-medium">📝 과제 미제출</button>
+                                <button type="button" onclick="setCategory('규칙 위반')" class="text-xs bg-slate-100 hover:bg-emerald-100 hover:text-emerald-700 text-slate-600 px-2.5 py-1 rounded-lg transition font-medium">🚫 규칙 위반</button>
+                                <button type="button" onclick="setCategory('결석')" class="text-xs bg-slate-100 hover:bg-emerald-100 hover:text-emerald-700 text-slate-600 px-2.5 py-1 rounded-lg transition font-medium">❌ 결석</button>
+                            </div>
+                            <input type="text" id="fine-reason" required placeholder="사유 직접 입력 (예: 10분 지각)" class="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                        </div>
+
+                        <!-- Amount Input with Quick Add -->
+                        <div>
+                            <label class="text-xs font-semibold text-slate-600 mb-1 block">벌금 금액 (원)</label>
+                            <input type="number" id="fine-amount" required min="100" step="100" placeholder="0" class="w-full text-lg font-bold text-slate-800 px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 mb-2">
+                            <div class="grid grid-cols-4 gap-1.5">
+                                <button type="button" onclick="addAmount(1000)" class="text-xs py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium">+1천원</button>
+                                <button type="button" onclick="addAmount(3000)" class="text-xs py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium">+3천원</button>
+                                <button type="button" onclick="addAmount(5000)" class="text-xs py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium">+5천원</button>
+                                <button type="button" onclick="addAmount(10000)" class="text-xs py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium">+1만원</button>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2">
+                            <i data-lucide="check" class="w-4 h-4"></i> 벌금 등록
+                        </button>
+                    </form>
+                </div>
+
+                <!-- 2. Member List Management -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="users" class="w-5 h-5 text-emerald-600"></i>
+                            멤버 관리 (<span id="member-count-badge">10</span>명)
+                        </h2>
+                    </div>
+
+                    <!-- Add New Member Input -->
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="new-member-name" placeholder="새 멤버 이름" class="flex-1 text-sm px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500">
+                        <button onclick="addMember()" class="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1">
+                            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> 추가
+                        </button>
+                    </div>
+
+                    <!-- Member Tags Container -->
+                    <div id="member-tags-list" class="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+                        <!-- Dynamic member pills -->
+                    </div>
+                </div>
+
+                <!-- 3. Account Details & Kakao Share -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        <i data-lucide="send" class="w-5 h-5 text-emerald-600"></i>
+                        정산 메시지 / 계좌 설정
+                    </h2>
+                    
+                    <div class="space-y-3 mb-4">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="text" id="bank-name" placeholder="은행명 (예: 카카오뱅크)" onchange="saveAccountInfo()" class="text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500">
+                            <input type="text" id="account-holder" placeholder="예금주 이름" onchange="saveAccountInfo()" class="text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <input type="text" id="account-number" placeholder="계좌번호" onchange="saveAccountInfo()" class="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500">
+                    </div>
+
+                    <button onclick="copyKakaoShareMessage()" class="w-full py-2.5 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+                        <i data-lucide="message-circle" class="w-4 h-4 fill-amber-950"></i> 카카오톡 정산 안내 문구 복사
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Member Totals & Log History (7 cols) -->
+            <div class="lg:col-span-7 space-y-6">
+
+                <!-- Tabs header -->
+                <div class="bg-white p-2 rounded-2xl border border-slate-200/80 shadow-sm flex gap-2">
+                    <button onclick="switchTab('summary')" id="tab-btn-summary" class="flex-1 py-2.5 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 bg-emerald-500 text-white shadow-sm">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 멤버별 현황
+                    </button>
+                    <button onclick="switchTab('logs')" id="tab-btn-logs" class="flex-1 py-2.5 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 text-slate-500 hover:bg-slate-50">
+                        <i data-lucide="list" class="w-4 h-4"></i> 벌금 기록 내역 (<span id="logs-count">0</span>)
+                    </button>
+                    <button onclick="switchTab('calculator')" id="tab-btn-calculator" class="flex-1 py-2.5 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 text-slate-500 hover:bg-slate-50">
+                        <i data-lucide="calculator" class="w-4 h-4"></i> 1/N 정산 계산기
+                    </button>
+                </div>
+
+                <!-- Tab 1: Member Summary List -->
+                <div id="tab-summary" class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-900 text-sm">개인별 벌금 누적 현황</h3>
+                        <span class="text-xs text-slate-400">클릭 시 빠른 벌금 부과 가능</span>
+                    </div>
+
+                    <div id="member-summary-list" class="space-y-2.5">
+                        <!-- Dynamic Member list items -->
+                    </div>
+                </div>
+
+                <!-- Tab 2: Fine Logs History -->
+                <div id="tab-logs" class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm hidden">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-900 text-sm">벌금 히스토리</h3>
+                        <span class="text-xs text-slate-400">최신순 정렬</span>
+                    </div>
+
+                    <div id="logs-container" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                        <!-- Dynamic log entries -->
+                    </div>
+                </div>
+
+                <!-- Tab 3: Equal Split / Expense Calculator -->
+                <div id="tab-calculator" class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm hidden">
+                    <h3 class="font-bold text-slate-900 text-sm mb-2">1/N 분빵 / 공금 환급 계산기</h3>
+                    <p class="text-xs text-slate-500 mb-4">모인 벌금 총액을 멤버 수로 나누어 1인당 배분 금액을 계산하거나, 부족/남은 금액을 확인하세요.</p>
+
+                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4 mb-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold text-slate-600">현재 총 모인 벌금</span>
+                            <span class="text-base font-bold text-emerald-600" id="calc-total-fine">0원</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold text-slate-600">정산 대상 인원</span>
+                            <span class="text-sm font-semibold text-slate-800" id="calc-member-count">10명</span>
+                        </div>
+                        <hr class="border-slate-200">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-800">1인당 환급/사용 가능액</span>
+                            <span class="text-lg font-extrabold text-slate-900" id="calc-per-person">0원</span>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-100 pt-4">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2">회식 비용 차감 정산 예시</h4>
+                        <div class="flex gap-2 mb-3">
+                            <input type="number" id="event-expense-input" placeholder="실제 회식 총 비용 입력" class="flex-1 text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500">
+                            <button onclick="calculateEventSplit()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl">계산하기</button>
+                        </div>
+                        <div id="event-calc-result" class="text-xs text-slate-600 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 hidden">
+                            <!-- Expense breakdown result -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // Default 10 Members as requested
+        const DEFAULT_MEMBERS = [
+            "김철수", "이영희", "박민수", "최지은", "정우성",
+            "강동원", "한효주", "윤서준", "임수빈", "송지호"
+        ];
+
+        // State Management
+        let appState = {
+            members: [],
+            logs: [],
+            targetGoal: 100000,
+            account: {
+                bank: '',
+                number: '',
+                holder: ''
+            }
+        };
+
+        // Initialize application on page load
+        window.onload = function() {
+            loadState();
+            renderAll();
+            lucide.createIcons();
+        };
+
+        // Local Storage Persistence
+        function saveState() {
+            localStorage.setItem('fine_app_state', JSON.stringify(appState));
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem('fine_app_state');
+            if (saved) {
+                try {
+                    appState = JSON.parse(saved);
+                } catch (e) {
+                    console.error("Failed to parse stored state", e);
+                    initDefaults();
+                }
+            } else {
+                initDefaults();
+            }
+            
+            // Populate account input fields
+            document.getElementById('bank-name').value = appState.account.bank || '';
+            document.getElementById('account-number').value = appState.account.number || '';
+            document.getElementById('account-holder').value = appState.account.holder || '';
+            document.getElementById('target-goal-input').value = appState.targetGoal || '';
+        }
+
+        function initDefaults() {
+            appState = {
+                members: [...DEFAULT_MEMBERS],
+                logs: [],
+                targetGoal: 100000,
+                account: { bank: '카카오뱅크', number: '3333-00-0000000', holder: '총무' }
+            };
+            saveState();
+        }
+
+        function resetData() {
+            if (confirm("모든 벌금 기록과 멤버 데이터가 초기화됩니다. 정말 진행하시겠습니까?")) {
+                initDefaults();
+                renderAll();
+                showToast("데이터가 초기화되었습니다.");
+            }
+        }
+
+        // Render Functions
+        function renderAll() {
+            renderDashboard();
+            renderMemberCheckboxes();
+            renderMemberTags();
+            renderMemberSummary();
+            renderLogs();
+            renderCalculator();
+            lucide.createIcons();
+        }
+
+        function renderDashboard() {
+            const totalAmount = appState.logs.reduce((sum, log) => sum + log.amount, 0);
+            const totalCount = appState.logs.length;
+
+            document.getElementById('dash-total-amount').innerText = formatKRW(totalAmount);
+            document.getElementById('dash-total-count').innerText = `${totalCount}건`;
+            document.getElementById('dash-member-count').innerText = `${appState.members.length}명`;
+
+            // Calculate member with highest fine
+            const memberTotals = getMemberTotals();
+            let kingName = "-";
+            let kingAmount = 0;
+
+            Object.entries(memberTotals).forEach(([name, data]) => {
+                if (data.total > kingAmount) {
+                    kingAmount = data.total;
+                    kingName = name;
+                }
+            });
+
+            document.getElementById('dash-king-name').innerText = kingName;
+            document.getElementById('dash-king-amount').innerText = formatKRW(kingAmount);
+
+            // Goal progress
+            const goal = appState.targetGoal || 1;
+            const percent = Math.min(Math.round((totalAmount / goal) * 100), 100);
+            document.getElementById('goal-percent-text').innerText = `${percent}%`;
+            document.getElementById('goal-progress-bar').style.width = `${percent}%`;
+        }
+
+        function renderMemberCheckboxes() {
+            const container = document.getElementById('member-checkbox-group');
+            if (appState.members.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-400 col-span-3 text-center py-2">등록된 멤버가 없습니다.</span>`;
+                return;
+            }
+
+            container.innerHTML = appState.members.map((member, idx) => `
+                <label class="flex items-center gap-1.5 p-1.5 rounded-lg bg-white border border-slate-100 hover:bg-emerald-50/50 cursor-pointer text-xs select-none">
+                    <input type="checkbox" name="selected-members" value="${member}" class="member-cb rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5">
+                    <span class="truncate font-medium text-slate-700">${member}</span>
+                </label>
+            `).join('');
+        }
+
+        function renderMemberTags() {
+            const container = document.getElementById('member-tags-list');
+            document.getElementById('member-count-badge').innerText = appState.members.length;
+
+            container.innerHTML = appState.members.map(member => `
+                <div class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-slate-700 text-xs px-2.5 py-1 rounded-xl">
+                    <span>${member}</span>
+                    <button onclick="removeMember('${member}')" class="text-slate-400 hover:text-rose-500 ml-0.5">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function renderMemberSummary() {
+            const container = document.getElementById('member-summary-list');
+            const totals = getMemberTotals();
+            const grandTotal = appState.logs.reduce((s, l) => s + l.amount, 0) || 1;
+
+            if (appState.members.length === 0) {
+                container.innerHTML = `<p class="text-center text-xs text-slate-400 py-6">멤버를 추가해주세요.</p>`;
+                return;
+            }
+
+            // Sort members by highest fine
+            const sortedMembers = [...appState.members].sort((a, b) => (totals[b]?.total || 0) - (totals[a]?.total || 0));
+
+            container.innerHTML = sortedMembers.map(member => {
+                const data = totals[member] || { total: 0, count: 0 };
+                const percentage = Math.round((data.total / grandTotal) * 100) || 0;
+
+                return `
+                    <div class="p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition border border-slate-100 flex flex-col gap-2">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-xs text-slate-800">${member}</span>
+                                <span class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full">${data.count}회 적발</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-extrabold text-sm ${data.total > 0 ? 'text-rose-600' : 'text-slate-400'}">${formatKRW(data.total)}</span>
+                                <button onclick="quickFine('${member}')" class="text-[11px] text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg font-medium transition">+ 부과</button>
+                            </div>
+                        </div>
+                        <!-- Micro progress bar -->
+                        <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-rose-500 h-full rounded-full" style="width: ${percentage}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logs-container');
+            document.getElementById('logs-count').innerText = appState.logs.length;
+
+            if (appState.logs.length === 0) {
+                container.innerHTML = `<p class="text-center text-xs text-slate-400 py-10">아직 등록된 벌금 내역이 없습니다.</p>`;
+                return;
+            }
+
+            container.innerHTML = appState.logs.map(log => `
+                <div class="p-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between shadow-sm hover:border-slate-300 transition">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-xs text-slate-800">${log.memberName}</span>
+                            <span class="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md font-semibold">${log.reason}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-400">${log.timestamp}</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-bold text-sm text-slate-900">${formatKRW(log.amount)}</span>
+                        <button onclick="deleteLog('${log.id}')" class="text-slate-300 hover:text-rose-500 p-1 transition">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderCalculator() {
+            const totalFine = appState.logs.reduce((sum, log) => sum + log.amount, 0);
+            const count = appState.members.length || 1;
+            const perPerson = Math.floor(totalFine / count);
+
+            document.getElementById('calc-total-fine').innerText = formatKRW(totalFine);
+            document.getElementById('calc-member-count').innerText = `${count}명`;
+            document.getElementById('calc-per-person').innerText = formatKRW(perPerson);
+        }
+
+        // Actions & Event Handlers
+        function handleFineSubmit(e) {
+            e.preventDefault();
+            const checkboxes = document.querySelectorAll('input[name="selected-members"]:checked');
+            const selectedMembers = Array.from(checkboxes).map(cb => cb.value);
+            const reason = document.getElementById('fine-reason').value.trim();
+            const amount = parseInt(document.getElementById('fine-amount').value, 10);
+
+            if (selectedMembers.length === 0) {
+                showToast("벌금을 부과할 멤버를 최소 한 명 선택해주세요.");
+                return;
+            }
+
+            if (!reason || isNaN(amount) || amount <= 0) {
+                showToast("사유와 올바른 금액을 입력해주세요.");
+                return;
+            }
+
+            const now = new Date();
+            const dateStr = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            selectedMembers.forEach(member => {
+                appState.logs.unshift({
+                    id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+                    memberName: member,
+                    reason: reason,
+                    amount: amount,
+                    timestamp: dateStr
+                });
+            });
+
+            saveState();
+            renderAll();
+
+            // Reset Form Inputs
+            document.getElementById('fine-reason').value = '';
+            document.getElementById('fine-amount').value = '';
+            checkboxes.forEach(cb => cb.checked = false);
+
+            showToast(`${selectedMembers.join(', ')}님에게 ${formatKRW(amount)} 벌금이 등록되었습니다.`);
+        }
+
+        function quickFine(memberName) {
+            // Pre-select member in checkbox
+            const checkboxes = document.querySelectorAll('.member-cb');
+            checkboxes.forEach(cb => {
+                cb.checked = (cb.value === memberName);
+            });
+            document.getElementById('fine-reason').focus();
+            showToast(`${memberName}님이 선택되었습니다. 사유와 금액을 입력하세요.`);
+        }
+
+        function addAmount(val) {
+            const input = document.getElementById('fine-amount');
+            const current = parseInt(input.value, 10) || 0;
+            input.value = current + val;
+        }
+
+        function setCategory(cat) {
+            document.getElementById('fine-reason').value = cat;
+        }
+
+        function selectAllMembers() {
+            const checkboxes = document.querySelectorAll('.member-cb');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            checkboxes.forEach(cb => cb.checked = !allChecked);
+        }
+
+        function addMember() {
+            const input = document.getElementById('new-member-name');
+            const name = input.value.trim();
+
+            if (!name) return;
+            if (appState.members.includes(name)) {
+                showToast("이미 존재하는 멤버 이름입니다.");
+                return;
+            }
+
+            appState.members.push(name);
+            input.value = '';
+            saveState();
+            renderAll();
+            showToast(`${name}님이 멤버에 추가되었습니다.`);
+        }
+
+        function removeMember(name) {
+            if (confirm(`${name}님을 멤버 목록에서 삭제하시겠습니까?`)) {
+                appState.members = appState.members.filter(m => m !== name);
+                saveState();
+                renderAll();
+                showToast(`${name}님이 삭제되었습니다.`);
+            }
+        }
+
+        function deleteLog(id) {
+            appState.logs = appState.logs.filter(log => log.id !== id);
+            saveState();
+            renderAll();
+            showToast("벌금 기록이 삭제되었습니다.");
+        }
+
+        function updateGoal(val) {
+            appState.targetGoal = parseInt(val, 10) || 0;
+            saveState();
+            renderDashboard();
+        }
+
+        function saveAccountInfo() {
+            appState.account.bank = document.getElementById('bank-name').value.trim();
+            appState.account.holder = document.getElementById('account-holder').value.trim();
+            appState.account.number = document.getElementById('account-number').value.trim();
+            saveState();
+        }
+
+        function calculateEventSplit() {
+            const expense = parseInt(document.getElementById('event-expense-input').value, 10) || 0;
+            const totalFine = appState.logs.reduce((s, l) => s + l.amount, 0);
+            const count = appState.members.length || 1;
+            const resultBox = document.getElementById('event-calc-result');
+
+            if (expense <= 0) {
+                showToast("올바른 회식 금액을 입력해주세요.");
+                return;
+            }
+
+            const diff = expense - totalFine;
+            resultBox.classList.remove('hidden');
+
+            if (diff > 0) {
+                const addPerPerson = Math.ceil(diff / count);
+                resultBox.innerHTML = `
+                    <div class="font-bold text-rose-600 mb-1">💸 벌금 모금액이 부족합니다!</div>
+                    <div>• 총 모인 벌금: ${formatKRW(totalFine)}</div>
+                    <div>• 부족한 금액: ${formatKRW(diff)}</div>
+                    <div class="mt-2 text-slate-800 font-semibold border-t border-emerald-200 pt-1">👉 멤버 1인당 추가 부담금: <span class="text-rose-600 font-bold">${formatKRW(addPerPerson)}</span></div>
+                `;
+            } else {
+                const remain = Math.abs(diff);
+                const remainPerPerson = Math.floor(remain / count);
+                resultBox.innerHTML = `
+                    <div class="font-bold text-emerald-700 mb-1">🎉 벌금 모금액으로 전체 회식비 충당 가능!</div>
+                    <div>• 총 모인 벌금: ${formatKRW(totalFine)}</div>
+                    <div>• 회식 후 남는 잔액: ${formatKRW(remain)}</div>
+                    <div class="mt-2 text-slate-800 font-semibold border-t border-emerald-200 pt-1">👉 1인당 환급 잔액: <span class="text-emerald-600 font-bold">${formatKRW(remainPerPerson)}</span></div>
+                `;
+            }
+        }
+
+        function copyKakaoShareMessage() {
+            saveAccountInfo();
+            const totalFine = appState.logs.reduce((s, l) => s + l.amount, 0);
+            const totals = getMemberTotals();
+            
+            let memberLines = appState.members.map(m => {
+                const amt = totals[m]?.total || 0;
+                return `• ${m}: ${formatKRW(amt)}`;
+            }).join('\n');
+
+            const acc = appState.account;
+            const accText = (acc.bank || acc.number) 
+                ? `\n\n🏦 [입금 계좌]\n${acc.bank} ${acc.number} (예금주: ${acc.holder})`
+                : '';
+
+            const shareText = `[📢 모임 벌금 정산 안내]\n\n💰 총 모인 벌금: ${formatKRW(totalFine)}\n\n👤 멤버별 누적 벌금:\n${memberLines}${accText}\n\n벌금을 확인하시고 정산해주시기 바랍니다! 😊`;
+
+            // Copy to clipboard
+            const textarea = document.createElement('textarea');
+            textarea.value = shareText;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+
+            showToast("카카오톡 정산 메시지가 클립보드에 복사되었습니다!");
+        }
+
+        // Helpers
+        function getMemberTotals() {
+            const totals = {};
+            appState.members.forEach(m => totals[m] = { total: 0, count: 0 });
+            appState.logs.forEach(log => {
+                if (!totals[log.memberName]) {
+                    totals[log.memberName] = { total: 0, count: 0 };
+                }
+                totals[log.memberName].total += log.amount;
+                totals[log.memberName].count += 1;
+            });
+            return totals;
+        }
+
+        function formatKRW(val) {
+            return new Intl.NumberFormat('ko-KR').format(val) + '원';
+        }
+
+        function switchTab(tabName) {
+            ['summary', 'logs', 'calculator'].forEach(t => {
+                const tabEl = document.getElementById(`tab-${t}`);
+                const btnEl = document.getElementById(`tab-btn-${t}`);
+
+                if (t === tabName) {
+                    tabEl.classList.remove('hidden');
+                    btnEl.className = "flex-1 py-2.5 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 bg-emerald-500 text-white shadow-sm";
+                } else {
+                    tabEl.classList.add('hidden');
+                    btnEl.className = "flex-1 py-2.5 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 text-slate-500 hover:bg-slate-50";
+                }
+            });
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('translate-y-[-100px]', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-[-100px]', 'opacity-0');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
